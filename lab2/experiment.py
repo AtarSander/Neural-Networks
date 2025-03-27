@@ -2,7 +2,8 @@ from sklearn.metrics import (
     f1_score,
     classification_report,
     recall_score,
-    roc_auc_score,
+    roc_curve,
+    auc,
     accuracy_score,
     precision_score,
     confusion_matrix
@@ -12,6 +13,7 @@ from model import Model, train, predict
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
+import torch.nn.functional as F
 
 
 def tune_architecture(
@@ -27,6 +29,8 @@ def tune_architecture(
     val_f1 = []
     train_confusion_matrix = []
     val_confusion_matrix = []
+    train_roc_curve = []
+    val_roc_curve = []
 
     train_dataset = TensorDataset(
         torch.from_numpy(train_x).float(), torch.from_numpy(train_y).long()
@@ -58,17 +62,43 @@ def tune_architecture(
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
 
+		# ROC curves for each class against all others
+        model.eval()
+        with torch.no_grad():
+            logits = model(torch.tensor(train_x).float().to(device))
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            n_classes = probs.shape[1]
+            roc_data = []
+            for i in range(n_classes):
+                fpr, tpr, _ = roc_curve(train_y == i, probs[:, i])
+                roc_auc = auc(fpr, tpr)
+                roc_data.append((fpr, tpr, roc_auc))
+            train_roc_curve.append(roc_data)
+            
+        with torch.no_grad():
+            logits = model(torch.tensor(val_x).float().to(device))
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            n_classes = probs.shape[1]
+            roc_data = []
+            for i in range(n_classes):
+                fpr, tpr, _ = roc_curve(val_y == i, probs[:, i])
+                roc_auc = auc(fpr, tpr)
+                roc_data.append((fpr, tpr, roc_auc))
+            val_roc_curve.append(roc_data)
+
     return (
         train_accuracy,
         train_precision,
         train_recall,
         train_f1,
         train_confusion_matrix,
+        train_roc_curve,
         val_accuracy,
         val_precision,
         val_recall,
         val_f1,
-        val_confusion_matrix
+        val_confusion_matrix,
+        val_roc_curve
     )
 
 
@@ -85,6 +115,8 @@ def tune_hyperparameters(
     val_f1 = []
     train_confusion_matrix = []
     val_confusion_matrix = []
+    train_roc_curve = []
+    val_roc_curve = []
 
     train_dataset = TensorDataset(
         torch.from_numpy(train_x).float(), torch.from_numpy(train_y).long()
@@ -115,17 +147,43 @@ def tune_hyperparameters(
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
 
+		# ROC curves for each class against all others
+        model.eval()
+        with torch.no_grad():
+            logits = model(torch.tensor(train_x).float().to(device))
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            n_classes = probs.shape[1]
+            roc_data = []
+            for i in range(n_classes):
+                fpr, tpr, _ = roc_curve(train_y == i, probs[:, i])
+                roc_auc = auc(fpr, tpr)
+                roc_data.append((fpr, tpr, roc_auc))
+            train_roc_curve.append(roc_data)
+            
+        with torch.no_grad():
+            logits = model(torch.tensor(val_x).float().to(device))
+            probs = F.softmax(logits, dim=1).cpu().numpy()
+            n_classes = probs.shape[1]
+            roc_data = []
+            for i in range(n_classes):
+                fpr, tpr, _ = roc_curve(val_y == i, probs[:, i])
+                roc_auc = auc(fpr, tpr)
+                roc_data.append((fpr, tpr, roc_auc))
+            val_roc_curve.append(roc_data)
+            
     return (
         train_accuracy,
         train_precision,
         train_recall,
         train_f1,
         train_confusion_matrix,
+        train_roc_curve,
         val_accuracy,
         val_precision,
         val_recall,
         val_f1,
-        val_confusion_matrix
+        val_confusion_matrix,
+        val_roc_curve
     )
 
 
@@ -150,24 +208,32 @@ def plot_confusion_matrices(train_confusion_matrix, val_confusion_matrix):
 	fig, axes = plt.subplots(nrows=len(train_confusion_matrix), ncols=2, figsize=(20, len(train_confusion_matrix) * 8))
 
 	for index in range(len(train_confusion_matrix)):
-		sns.heatmap(
-			train_confusion_matrix[index],
-			annot=True,
-			fmt='d',
-			cmap='Blues',
-			ax=axes[index, 0]
-		)
+		sns.heatmap(train_confusion_matrix[index], annot=True, fmt='d', cmap='Blues', ax=axes[index, 0])
 		axes[index, 0].set_title(f"Train Confusion Matrix for Model {index}")
 		axes[index, 0].set_ylabel("Real Label")
 		axes[index, 0].set_xlabel("Predicted Label")
 		
-		sns.heatmap(
-			val_confusion_matrix[index],
-			annot=True,
-			fmt='d',
-			cmap='Blues',
-			ax=axes[index, 1]
-		)
+		sns.heatmap(val_confusion_matrix[index], annot=True, fmt='d', cmap='Blues', ax=axes[index, 1])
 		axes[index, 1].set_title(f"Validation Confusion Matrix for Model {index}")
 		axes[index, 1].set_ylabel("Real Label")
 		axes[index, 1].set_xlabel("Predicted Label")
+          
+def plot_roc_curves(train_roc_curve, val_roc_curve):
+    fig, axes = plt.subplots(nrows=len(train_roc_curve), ncols=2, figsize=(20, len(train_roc_curve) * 8))
+    for index in range(len(train_roc_curve)):
+        axes[index, 0].plot([0, 1], [0, 1], "k--", label="Random Guess")
+        axes[index, 1].plot([0, 1], [0, 1], "k--", label="Random Guess")
+        
+        for i, (fpr, tpr, roc_auc) in enumerate(train_roc_curve[index]):
+            axes[index, 0].plot(fpr, tpr, label=f"Class {i} (AUC = {roc_auc:.2f})")
+            axes[index, 0].set_xlabel("False Positive Rate")
+            axes[index, 0].set_ylabel("True Positive Rate")
+            axes[index, 0].set_title(f"Training ROC Curve for Model {index}")
+            axes[index, 0].legend()
+
+        for i, (fpr, tpr, roc_auc) in enumerate(val_roc_curve[index]):
+            axes[index, 1].plot(fpr, tpr, label=f"Class {i} (AUC = {roc_auc:.2f})")
+            axes[index, 1].set_xlabel("False Positive Rate")
+            axes[index, 1].set_ylabel("True Positive Rate")
+            axes[index, 1].set_title(f"Validation ROC Curve for Model {index}")
+            axes[index, 1].legend()
