@@ -5,10 +5,13 @@ from sklearn.metrics import (
     roc_auc_score,
     accuracy_score,
     precision_score,
+    confusion_matrix
 )
 from torch.utils.data import TensorDataset
 from model import Model, train, predict
 import torch
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def tune_architecture(
@@ -22,6 +25,8 @@ def tune_architecture(
     val_recall = []
     train_f1 = []
     val_f1 = []
+    train_confusion_matrix = []
+    val_confusion_matrix = []
 
     train_dataset = TensorDataset(
         torch.from_numpy(train_x).float(), torch.from_numpy(train_y).long()
@@ -44,22 +49,26 @@ def tune_architecture(
         train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
         train_recall.append(recall_score(train_y, train_y_preds, average="micro"))
         train_f1.append(f1_score(train_y, train_y_preds, average="micro"))
+        train_confusion_matrix.append(confusion_matrix(train_y, train_y_preds))
 
         val_y_preds = predict(model, val_x)
         val_accuracy.append(accuracy_score(val_y_preds, val_y))
         val_precision.append(precision_score(val_y, val_y_preds, average="micro"))
         val_recall.append(recall_score(val_y, val_y_preds, average="micro"))
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
+        val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
 
     return (
         train_accuracy,
         train_precision,
         train_recall,
         train_f1,
+        train_confusion_matrix,
         val_accuracy,
         val_precision,
         val_recall,
         val_f1,
+        val_confusion_matrix
     )
 
 
@@ -74,6 +83,8 @@ def tune_hyperparameters(
     val_recall = []
     train_f1 = []
     val_f1 = []
+    train_confusion_matrix = []
+    val_confusion_matrix = []
 
     train_dataset = TensorDataset(
         torch.from_numpy(train_x).float(), torch.from_numpy(train_y).long()
@@ -95,22 +106,26 @@ def tune_hyperparameters(
         train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
         train_recall.append(recall_score(train_y, train_y_preds, average="micro"))
         train_f1.append(f1_score(train_y, train_y_preds, average="micro"))
+        train_confusion_matrix.append(confusion_matrix(train_y, train_y_preds))
 
         val_y_preds = predict(model, val_x)
         val_accuracy.append(accuracy_score(val_y_preds, val_y))
         val_precision.append(precision_score(val_y, val_y_preds, average="micro"))
         val_recall.append(recall_score(val_y, val_y_preds, average="micro"))
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
+        val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
 
     return (
         train_accuracy,
         train_precision,
         train_recall,
         train_f1,
+        train_confusion_matrix,
         val_accuracy,
         val_precision,
         val_recall,
         val_f1,
+        val_confusion_matrix
     )
 
 
@@ -130,3 +145,29 @@ def train_final_model(train_x, train_y, architecture, hyperparameters, device):
     )
     print(f"Training done")
     return model
+
+def plot_confusion_matrices(train_confusion_matrix, val_confusion_matrix):
+	fig, axes = plt.subplots(nrows=len(train_confusion_matrix), ncols=2, figsize=(20, len(train_confusion_matrix) * 8))
+
+	for index in range(len(train_confusion_matrix)):
+		sns.heatmap(
+			train_confusion_matrix[index],
+			annot=True,
+			fmt='d',
+			cmap='Blues',
+			ax=axes[index, 0]
+		)
+		axes[index, 0].set_title(f"Train Confusion Matrix for Model {index}")
+		axes[index, 0].set_ylabel("Real Label")
+		axes[index, 0].set_xlabel("Predicted Label")
+		
+		sns.heatmap(
+			val_confusion_matrix[index],
+			annot=True,
+			fmt='d',
+			cmap='Blues',
+			ax=axes[index, 1]
+		)
+		axes[index, 1].set_title(f"Validation Confusion Matrix for Model {index}")
+		axes[index, 1].set_ylabel("Real Label")
+		axes[index, 1].set_xlabel("Predicted Label")
