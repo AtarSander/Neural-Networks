@@ -6,6 +6,9 @@ from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, OrdinalEncoder
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import pandas as pd
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 
 
 def classify(x):
@@ -86,12 +89,20 @@ def calculate_class_weights(labels):
     return torch.from_numpy(numpy_weights).float()
 
 
-def preprocess(df, numeric_columns, ordinal_columns, nominal_columns):
+def preprocess(X, numeric_columns, ordinal_columns, nominal_columns, y=pd.Series(), oversample=False, undersample=False, random_state=42, echo_ordinal_counts=False):
+
+    if undersample:
+        resampler = RandomUnderSampler(random_state=random_state)
+        X, y = resampler.fit_resample(X, y)
+    elif oversample:
+        resampler = RandomOverSampler(random_state=random_state)
+        X, y = resampler.fit_resample(X, y)
+
     preprocessor = ColumnTransformer(
         transformers=[
             ("nominal", OneHotEncoder(handle_unknown="ignore"), nominal_columns),
             ("numeric_scaler", MinMaxScaler(), numeric_columns),
-            ("ordinal", OrdinalEncoder(), ordinal_columns),
+            ("ordinal", OrdinalEncoder(categories=[["0~5min", "5min~10min", "10min~15min"], ["0-5min", "5min~10min", "10min~15min", "15min~20min", "no_bus_stop_nearby"]]), ["TimeToBusStop", "TimeToSubway"])
         ],
         remainder="passthrough",
     )
@@ -100,8 +111,21 @@ def preprocess(df, numeric_columns, ordinal_columns, nominal_columns):
             ("preprocessing", preprocessor),
         ]
     )
-    pipeline.fit(df)
-    return pipeline.transform(df)
-
-
-# TODO check if ordinal encoding does ordering right
+    
+    processed_X = pipeline.fit_transform(X)	#fit_transform instead of fit then transform
+    
+	# check if ordinal columns transformation is correct
+    if echo_ordinal_counts:
+        feature_names = preprocessor.get_feature_names_out()
+        X_df = pd.DataFrame(X, columns=X.columns)
+        processed_X_df = pd.DataFrame(processed_X, columns=feature_names)
+        for col in ordinal_columns:
+            print(f"{col} value counts:")
+            print(X_df[col].value_counts())
+            print(f"ordinal__{col} value counts:")
+            print(processed_X_df[f"ordinal__{col}"].value_counts())
+            
+    if y.empty:
+        return processed_X
+    else:
+        return processed_X, y.to_numpy()
