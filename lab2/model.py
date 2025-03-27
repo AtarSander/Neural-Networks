@@ -36,6 +36,7 @@ class Model(nn.Module):
 
 
 def train(model, training_dataset, epochs, lr, batch_size, class_weights=None):
+    losses = []
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     if class_weights is not None:
         criterion = nn.CrossEntropyLoss(weight=class_weights.to(model.device))
@@ -53,7 +54,9 @@ def train(model, training_dataset, epochs, lr, batch_size, class_weights=None):
             loss.backward()
             optimizer.step()
             avg_loss += loss.item()
+        losses.append(avg_loss / len(train_dataloader))
         print(f"Epoch: {epoch}, loss: {avg_loss/len(train_dataloader)}")
+    return (list(range(epochs)), losses)
 
 
 def predict(model, train_x):

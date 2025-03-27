@@ -19,6 +19,7 @@ import torch.nn.functional as F
 def tune_architecture(
     train_x, train_y, val_x, val_y, architectures, training_setup, device
 ):
+    losses = []
     train_accuracy = []
     val_accuracy = []
     train_precision = []
@@ -39,7 +40,7 @@ def tune_architecture(
     for i, architecture in enumerate(architectures):
         model = Model(architecture, device)
         print(f"Training model {i}")
-        train(
+        loss = train(
             model,
             train_dataset,
             training_setup["epochs"],
@@ -48,6 +49,7 @@ def tune_architecture(
             training_setup["class_weights"],
         )
         print("Training done")
+        losses.append(loss)
         train_y_preds = predict(model, train_x)
         train_accuracy.append(accuracy_score(train_y_preds, train_y))
         train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
@@ -87,6 +89,7 @@ def tune_architecture(
             val_roc_curve.append(roc_data)
 
     return (
+        losses,
         train_accuracy,
         train_precision,
         train_recall,
@@ -105,6 +108,7 @@ def tune_architecture(
 def tune_hyperparameters(
     train_x, train_y, val_x, val_y, architecture, hyperparameters, device
 ):
+    losses = []
     train_accuracy = []
     val_accuracy = []
     train_precision = []
@@ -124,7 +128,7 @@ def tune_hyperparameters(
     for i, hyperparameter in enumerate(hyperparameters):
         model = Model(architecture, device)
         print(f"Training model {i}")
-        train(
+        loss = train(
             model,
             train_dataset,
             hyperparameter["epochs"],
@@ -133,6 +137,7 @@ def tune_hyperparameters(
             hyperparameter["class_weights"],
         )
         print("Training done")
+        losses.append(loss)
         train_y_preds = predict(model, train_x)
         train_accuracy.append(accuracy_score(train_y_preds, train_y))
         train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
@@ -172,6 +177,7 @@ def tune_hyperparameters(
             val_roc_curve.append(roc_data)
             
     return (
+        losses,
         train_accuracy,
         train_precision,
         train_recall,
@@ -219,7 +225,7 @@ def plot_confusion_matrices(train_confusion_matrix, val_confusion_matrix):
 		axes[index, 1].set_xlabel("Predicted Label")
           
 def plot_roc_curves(train_roc_curve, val_roc_curve):
-    fig, axes = plt.subplots(nrows=len(train_roc_curve), ncols=2, figsize=(20, len(train_roc_curve) * 8))
+    fig, axes = plt.subplots(nrows=len(train_roc_curve), ncols=2, figsize=(20, len(train_roc_curve) * 6))
     for index in range(len(train_roc_curve)):
         axes[index, 0].plot([0, 1], [0, 1], "k--", label="Random Guess")
         axes[index, 1].plot([0, 1], [0, 1], "k--", label="Random Guess")
@@ -237,3 +243,12 @@ def plot_roc_curves(train_roc_curve, val_roc_curve):
             axes[index, 1].set_ylabel("True Positive Rate")
             axes[index, 1].set_title(f"Validation ROC Curve for Model {index}")
             axes[index, 1].legend()
+
+def plot_losses(losses):
+    for index in range(len(losses)):
+        plt.plot(losses[index][0], losses[index][1], label="loss")
+        plt.xlabel("epoch")
+        plt.ylabel("loss")
+        plt.title(f"Loss vs Epoch for Model {index}")
+        plt.legend()
+        plt.show()
