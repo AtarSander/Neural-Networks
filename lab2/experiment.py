@@ -6,7 +6,7 @@ from sklearn.metrics import (
     auc,
     accuracy_score,
     precision_score,
-    confusion_matrix
+    confusion_matrix,
 )
 from torch.utils.data import TensorDataset
 from model import Model, train, predict
@@ -64,7 +64,7 @@ def tune_architecture(
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
 
-		# ROC curves for each class against all others
+        # ROC curves for each class against all others
         model.eval()
         with torch.no_grad():
             logits = model(torch.tensor(train_x).float().to(device))
@@ -76,7 +76,7 @@ def tune_architecture(
                 roc_auc = auc(fpr, tpr)
                 roc_data.append((fpr, tpr, roc_auc))
             train_roc_curve.append(roc_data)
-            
+
         with torch.no_grad():
             logits = model(torch.tensor(val_x).float().to(device))
             probs = F.softmax(logits, dim=1).cpu().numpy()
@@ -101,7 +101,7 @@ def tune_architecture(
         val_recall,
         val_f1,
         val_confusion_matrix,
-        val_roc_curve
+        val_roc_curve,
     )
 
 
@@ -125,6 +125,9 @@ def tune_hyperparameters(
     train_dataset = TensorDataset(
         torch.from_numpy(train_x).float(), torch.from_numpy(train_y).long()
     )
+    best_model = None
+    best_model_f1 = 0
+
     for i, hyperparameter in enumerate(hyperparameters):
         model = Model(architecture, device)
         print(f"Training model {i}")
@@ -151,8 +154,10 @@ def tune_hyperparameters(
         val_recall.append(recall_score(val_y, val_y_preds, average="micro"))
         val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
-
-		# ROC curves for each class against all others
+        if val_f1[-1] > best_model_f1:
+            best_model = model
+            best_model_f1 = val_f1[-1]
+        # ROC curves for each class against all others
         model.eval()
         with torch.no_grad():
             logits = model(torch.tensor(train_x).float().to(device))
@@ -164,7 +169,7 @@ def tune_hyperparameters(
                 roc_auc = auc(fpr, tpr)
                 roc_data.append((fpr, tpr, roc_auc))
             train_roc_curve.append(roc_data)
-            
+
         with torch.no_grad():
             logits = model(torch.tensor(val_x).float().to(device))
             probs = F.softmax(logits, dim=1).cpu().numpy()
@@ -175,8 +180,9 @@ def tune_hyperparameters(
                 roc_auc = auc(fpr, tpr)
                 roc_data.append((fpr, tpr, roc_auc))
             val_roc_curve.append(roc_data)
-            
+
     return (
+        best_model,
         losses,
         train_accuracy,
         train_precision,
@@ -189,7 +195,7 @@ def tune_hyperparameters(
         val_recall,
         val_f1,
         val_confusion_matrix,
-        val_roc_curve
+        val_roc_curve,
     )
 
 
@@ -210,26 +216,46 @@ def train_final_model(train_x, train_y, architecture, hyperparameters, device):
     print(f"Training done")
     return model
 
-def plot_confusion_matrices(train_confusion_matrix, val_confusion_matrix):
-	fig, axes = plt.subplots(nrows=len(train_confusion_matrix), ncols=2, figsize=(20, len(train_confusion_matrix) * 8))
 
-	for index in range(len(train_confusion_matrix)):
-		sns.heatmap(train_confusion_matrix[index], annot=True, fmt='d', cmap='Blues', ax=axes[index, 0])
-		axes[index, 0].set_title(f"Train Confusion Matrix for Model {index}")
-		axes[index, 0].set_ylabel("Real Label")
-		axes[index, 0].set_xlabel("Predicted Label")
-		
-		sns.heatmap(val_confusion_matrix[index], annot=True, fmt='d', cmap='Blues', ax=axes[index, 1])
-		axes[index, 1].set_title(f"Validation Confusion Matrix for Model {index}")
-		axes[index, 1].set_ylabel("Real Label")
-		axes[index, 1].set_xlabel("Predicted Label")
-          
+def plot_confusion_matrices(train_confusion_matrix, val_confusion_matrix):
+    fig, axes = plt.subplots(
+        nrows=len(train_confusion_matrix),
+        ncols=2,
+        figsize=(20, len(train_confusion_matrix) * 8),
+    )
+
+    for index in range(len(train_confusion_matrix)):
+        sns.heatmap(
+            train_confusion_matrix[index],
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            ax=axes[index, 0],
+        )
+        axes[index, 0].set_title(f"Train Confusion Matrix for Model {index}")
+        axes[index, 0].set_ylabel("Real Label")
+        axes[index, 0].set_xlabel("Predicted Label")
+
+        sns.heatmap(
+            val_confusion_matrix[index],
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            ax=axes[index, 1],
+        )
+        axes[index, 1].set_title(f"Validation Confusion Matrix for Model {index}")
+        axes[index, 1].set_ylabel("Real Label")
+        axes[index, 1].set_xlabel("Predicted Label")
+
+
 def plot_roc_curves(train_roc_curve, val_roc_curve):
-    fig, axes = plt.subplots(nrows=len(train_roc_curve), ncols=2, figsize=(20, len(train_roc_curve) * 6))
+    fig, axes = plt.subplots(
+        nrows=len(train_roc_curve), ncols=2, figsize=(20, len(train_roc_curve) * 6)
+    )
     for index in range(len(train_roc_curve)):
         axes[index, 0].plot([0, 1], [0, 1], "k--", label="Random Guess")
         axes[index, 1].plot([0, 1], [0, 1], "k--", label="Random Guess")
-        
+
         for i, (fpr, tpr, roc_auc) in enumerate(train_roc_curve[index]):
             axes[index, 0].plot(fpr, tpr, label=f"Class {i} (AUC = {roc_auc:.2f})")
             axes[index, 0].set_xlabel("False Positive Rate")
@@ -243,6 +269,7 @@ def plot_roc_curves(train_roc_curve, val_roc_curve):
             axes[index, 1].set_ylabel("True Positive Rate")
             axes[index, 1].set_title(f"Validation ROC Curve for Model {index}")
             axes[index, 1].legend()
+
 
 def plot_losses(losses):
     for index in range(len(losses)):
