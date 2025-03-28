@@ -7,6 +7,7 @@ from sklearn.metrics import (
     accuracy_score,
     precision_score,
     confusion_matrix,
+    balanced_accuracy_score,
 )
 from torch.utils.data import TensorDataset
 from model import Model, train, predict
@@ -17,7 +18,7 @@ import torch.nn.functional as F
 
 
 def tune_architecture(
-    train_x, train_y, val_x, val_y, architectures, training_setup, device
+    train_x, train_y, val_x, val_y, architectures, training_setup, device, verbose=False
 ):
     losses = []
     train_accuracy = []
@@ -47,23 +48,24 @@ def tune_architecture(
             training_setup["lr"],
             training_setup["batch_size"],
             training_setup["class_weights"],
+            verbose=verbose,
         )
         print("Training done")
         losses.append(loss)
         train_y_preds = predict(model, train_x)
-        train_accuracy.append(accuracy_score(train_y_preds, train_y))
-        train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
-        train_recall.append(recall_score(train_y, train_y_preds, average="micro"))
-        train_f1.append(f1_score(train_y, train_y_preds, average="micro"))
+        train_accuracy.append(accuracy_score(train_y, train_y_preds))
+        train_precision.append(precision_score(train_y, train_y_preds, average="macro"))
+        train_recall.append(recall_score(train_y, train_y_preds, average="macro"))
+        train_f1.append(f1_score(train_y, train_y_preds, average="macro"))
         train_confusion_matrix.append(confusion_matrix(train_y, train_y_preds))
 
         val_y_preds = predict(model, val_x)
-        val_accuracy.append(accuracy_score(val_y_preds, val_y))
-        val_precision.append(precision_score(val_y, val_y_preds, average="micro"))
-        val_recall.append(recall_score(val_y, val_y_preds, average="micro"))
-        val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
+        val_accuracy.append(accuracy_score(val_y, val_y_preds))
+        val_precision.append(precision_score(val_y, val_y_preds, average="macro"))
+        val_recall.append(recall_score(val_y, val_y_preds, average="macro"))
+        val_f1.append(f1_score(val_y, val_y_preds, average="macro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
-
+        print(classification_report(val_y, val_y_preds))
         # ROC curves for each class against all others
         model.eval()
         with torch.no_grad():
@@ -106,7 +108,7 @@ def tune_architecture(
 
 
 def tune_hyperparameters(
-    train_x, train_y, val_x, val_y, architecture, hyperparameters, device
+    train_x, train_y, val_x, val_y, architecture, hyperparameters, device, verbose=False
 ):
     losses = []
     train_accuracy = []
@@ -138,25 +140,27 @@ def tune_hyperparameters(
             hyperparameter["lr"],
             hyperparameter["batch_size"],
             hyperparameter["class_weights"],
+            verbose=verbose,
         )
         print("Training done")
         losses.append(loss)
         train_y_preds = predict(model, train_x)
-        train_accuracy.append(accuracy_score(train_y_preds, train_y))
-        train_precision.append(precision_score(train_y, train_y_preds, average="micro"))
-        train_recall.append(recall_score(train_y, train_y_preds, average="micro"))
-        train_f1.append(f1_score(train_y, train_y_preds, average="micro"))
+        train_accuracy.append(accuracy_score(train_y, train_y_preds))
+        train_precision.append(precision_score(train_y, train_y_preds, average="macro"))
+        train_recall.append(recall_score(train_y, train_y_preds, average="macro"))
+        train_f1.append(f1_score(train_y, train_y_preds, average="macro"))
         train_confusion_matrix.append(confusion_matrix(train_y, train_y_preds))
 
         val_y_preds = predict(model, val_x)
-        val_accuracy.append(accuracy_score(val_y_preds, val_y))
-        val_precision.append(precision_score(val_y, val_y_preds, average="micro"))
-        val_recall.append(recall_score(val_y, val_y_preds, average="micro"))
-        val_f1.append(f1_score(val_y, val_y_preds, average="micro"))
+        val_accuracy.append(accuracy_score(val_y, val_y_preds))
+        val_precision.append(precision_score(val_y, val_y_preds, average="macro"))
+        val_recall.append(recall_score(val_y, val_y_preds, average="macro"))
+        val_f1.append(f1_score(val_y, val_y_preds, average="macro"))
         val_confusion_matrix.append(confusion_matrix(val_y, val_y_preds))
-        if val_f1[-1] > best_model_f1:
+        print(classification_report(val_y, val_y_preds))
+        if val_recall[-1] > best_model_f1:
             best_model = model
-            best_model_f1 = val_f1[-1]
+            best_model_f1 = val_recall[-1]
         # ROC curves for each class against all others
         model.eval()
         with torch.no_grad():

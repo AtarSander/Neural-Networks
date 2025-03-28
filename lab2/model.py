@@ -35,7 +35,9 @@ class Model(nn.Module):
                 nn.init.zeros_(layer.bias)
 
 
-def train(model, training_dataset, epochs, lr, batch_size, class_weights=None):
+def train(
+    model, training_dataset, epochs, lr, batch_size, class_weights=None, verbose=False
+):
     losses = []
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     if class_weights is not None:
@@ -55,7 +57,8 @@ def train(model, training_dataset, epochs, lr, batch_size, class_weights=None):
             optimizer.step()
             avg_loss += loss.item()
         losses.append(avg_loss / len(train_dataloader))
-        print(f"Epoch: {epoch}, loss: {avg_loss/len(train_dataloader)}")
+        if verbose:
+            print(f"Epoch: {epoch}, loss: {avg_loss/len(train_dataloader)}")
     return (list(range(epochs)), losses)
 
 
