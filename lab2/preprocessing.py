@@ -89,7 +89,17 @@ def calculate_class_weights(labels):
     return torch.from_numpy(numpy_weights).float()
 
 
-def preprocess(X, numeric_columns, ordinal_columns, nominal_columns, y=pd.Series(), oversample=False, undersample=False, random_state=42, echo_ordinal_counts=False):
+def preprocess(
+    X,
+    numeric_columns,
+    ordinal_columns,
+    nominal_columns,
+    y=pd.Series(),
+    oversample=False,
+    undersample=False,
+    random_state=42,
+    echo_ordinal_counts=False,
+):
 
     if undersample:
         resampler = RandomUnderSampler(random_state=random_state)
@@ -102,7 +112,22 @@ def preprocess(X, numeric_columns, ordinal_columns, nominal_columns, y=pd.Series
         transformers=[
             ("nominal", OneHotEncoder(handle_unknown="ignore"), nominal_columns),
             ("numeric_scaler", MinMaxScaler(), numeric_columns),
-            ("ordinal", OrdinalEncoder(categories=[["0~5min", "5min~10min", "10min~15min"], ["0-5min", "5min~10min", "10min~15min", "15min~20min", "no_bus_stop_nearby"]]), ["TimeToBusStop", "TimeToSubway"])
+            (
+                "ordinal",
+                OrdinalEncoder(
+                    categories=[
+                        ["0~5min", "5min~10min", "10min~15min"],
+                        [
+                            "0-5min",
+                            "5min~10min",
+                            "10min~15min",
+                            "15min~20min",
+                            "no_bus_stop_nearby",
+                        ],
+                    ]
+                ),
+                ["TimeToBusStop", "TimeToSubway"],
+            ),
         ],
         remainder="passthrough",
     )
@@ -111,10 +136,10 @@ def preprocess(X, numeric_columns, ordinal_columns, nominal_columns, y=pd.Series
             ("preprocessing", preprocessor),
         ]
     )
-    
-    processed_X = pipeline.fit_transform(X)	#fit_transform instead of fit then transform
-    
-	# check if ordinal columns transformation is correct
+
+    processed_X = pipeline.fit_transform(X)
+
+    # check if ordinal columns transformation is correct
     if echo_ordinal_counts:
         feature_names = preprocessor.get_feature_names_out()
         X_df = pd.DataFrame(X, columns=X.columns)
@@ -124,7 +149,7 @@ def preprocess(X, numeric_columns, ordinal_columns, nominal_columns, y=pd.Series
             print(X_df[col].value_counts())
             print(f"ordinal__{col} value counts:")
             print(processed_X_df[f"ordinal__{col}"].value_counts())
-            
+
     if y.empty:
         return processed_X
     else:
