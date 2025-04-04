@@ -174,3 +174,4 @@ cython_debug/
 .pypirc
 lab1/test
 lab1/train
+lab3/data
