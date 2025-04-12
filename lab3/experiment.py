@@ -2,16 +2,12 @@ from sklearn.metrics import (
     f1_score,
     classification_report,
     recall_score,
-    roc_curve,
-    auc,
     accuracy_score,
     precision_score,
     confusion_matrix,
 )
 from model import Model, train, predict
 from torch.utils.data import DataLoader
-import torch
-import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 
@@ -79,31 +75,6 @@ def tune_architecture(
         val_confusion_matrix.append(confusion_matrix(val_labels, val_y_preds))
         print(classification_report(val_labels, val_y_preds))
 
-        # with torch.no_grad():
-        #     logits = train_y_preds
-        #     print(logits, logits.shape)
-        #     probs = (
-        #         F.softmax(torch.from_numpy(logits), dim=1).cpu().numpy()
-        #     )  # i know np.darray->tensor->np.darray is ugly, but dont want to use scipy just for softmax
-        #     n_classes = probs.shape[1]
-        #     roc_data = []
-        #     for i in range(n_classes):
-        #         fpr, tpr, _ = roc_curve(train_labels == i, probs[:, i])
-        #         roc_auc = auc(fpr, tpr)
-        #         roc_data.append((fpr, tpr, roc_auc))
-        #     train_roc_curve.append(roc_data)
-
-        # with torch.no_grad():
-        #     logits = val_y_preds
-        #     probs = F.softmax(torch.from_numpy(logits), dim=1).cpu().numpy()
-        #     n_classes = probs.shape[1]
-        #     roc_data = []
-        #     for i in range(n_classes):
-        #         fpr, tpr, _ = roc_curve(val_labels == i, probs[:, i])
-        #         roc_auc = auc(fpr, tpr)
-        #         roc_data.append((fpr, tpr, roc_auc))
-        #     val_roc_curve.append(roc_data)
-
     return (
         losses,
         train_accuracy,
@@ -119,6 +90,7 @@ def tune_architecture(
         val_confusion_matrix,
         val_roc_curve,
     )
+
 
 def resume_tuning(
     model_path,
@@ -200,6 +172,7 @@ def resume_tuning(
         val_confusion_matrix,
         val_roc_curve,
     )
+
 
 def plot_losses(losses):
     for index in range(len(losses)):

@@ -1,21 +1,23 @@
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import utils
+import torch
 import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 
+def imshow(img):
+    img = img / 2 + 0.5
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
+
+
 def visualize_images(dataloader, classes, figsize=(20, 10), batch_size=16):
     plt.figure(figsize=figsize)
     images, labels = next(iter(dataloader))
-
-    def imshow(img):
-        img = img / 2 + 0.5
-        npimg = img.numpy()
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
-        plt.show()
-
     images, labels = next(iter(dataloader))
 
     imshow(torchvision.utils.make_grid(images))
@@ -53,3 +55,20 @@ class TestDataset(Dataset):
         if self.transform:
             img = self.transform(img)
         return img, os.path.basename(path)
+
+
+def show_class_grid(dataset, class_name, num_images=16, nrow=4):
+    class_idx = dataset.class_to_idx[class_name]
+    found_images = []
+
+    for img, label in dataset:
+        if label == class_idx:
+            found_images.append(img)
+            if len(found_images) == num_images:
+                break
+    if not found_images:
+        print(f"No images found for class '{class_name}'")
+        return
+
+    grid = utils.make_grid(torch.stack(found_images), nrow=nrow, padding=2)
+    imshow(grid)
