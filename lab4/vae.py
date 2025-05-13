@@ -10,6 +10,7 @@ class VAE(nn.Module):
         self.label_embedding = LabelEmbedding(num_classes=num_classes, embedding_dim=label_emb_dim).to(device)
         self.device = device
         self.num_classes = num_classes
+        self.latent_dim= latent_dim
 
     def forward(self, x, y):
         B, C, H, W = x.shape
@@ -38,11 +39,10 @@ class VAE(nn.Module):
     def generate(self, y):
         with torch.no_grad():
             y_emb = self.label_embedding(y)
-            z = torch.randn((y.shape[0], self.label_embedding)).to(self.device)
+            z = torch.randn((y.shape[0], self.latent_dim)).to(self.device)
             z_cond = torch.cat([z, y_emb], dim=1)
             x_gen = self.decoder(z_cond)
-        return x_gen
-
+        return x_gen.detach().cpu()
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, hidden_dims, latent_dim, kernel_size, stride, padding):
