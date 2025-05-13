@@ -5,7 +5,7 @@ class GAN(nn.Module):
     def __init__(self, input_dim, hidden_dims, latent_dim, num_classes, label_emb_dim, device, input_shape, generator_batchnorm=False):
         super().__init__()
         self.generator = Generator(latent_dim + label_emb_dim, hidden_dims, input_dim, input_shape, generator_batchnorm).to(device)
-        self.discriminator = Discriminator(input_dim + label_emb_dim, hidden_dims, 1).to(device)
+        self.discriminator = Discriminator(input_dim + label_emb_dim, list(reversed(hidden_dims)), 1).to(device)
         self.label_embedding = LabelEmbedding(num_classes=num_classes, embedding_dim=label_emb_dim).to(device)
         self.device = device
         self.num_classes = num_classes
@@ -25,13 +25,13 @@ class GAN(nn.Module):
         self.discriminator.load_state_dict(ckpt['discriminator'])
         self.label_embedding.load_state_dict(ckpt['label_embedding'])
     
-    def generate(self, y): # y should already be .to(device), is it longtensor?
+    def generate(self, y):
         z = torch.randn((y.shape[0], self.latent_dim), device=self.device)
         y_emb = self.label_embedding(y)
         z_cond = torch.cat([z, y_emb], dim=1)
         return self.generator(z_cond)
     
-    def discriminate(self, x, y): # y should already be .to(device), is it longtensor?
+    def discriminate(self, x, y):
         y_emb = self.label_embedding(y)
         x = x.view(x.size(0), -1)
         x_cond = torch.cat([x, y_emb], dim=1)
@@ -50,10 +50,10 @@ class Generator(nn.Module):
     def build_generator(self, generator_batchnorm):
         blocks = nn.ModuleList()
         hidden_in = self.input_dim
-        for hidden_out in self.hidden_dims[:-1]:
+        for hidden_out in self.hidden_dims:
             blocks.append(self.generator_block(hidden_in, hidden_out, generator_batchnorm))
             hidden_in = hidden_out
-        blocks.append(self.generator_final())
+        blocks.append(self.generator_final(hidden_in))
         return nn.Sequential(*blocks)
     
     def generator_block(self, in_channels, out_channels, generator_batchnorm):
@@ -69,14 +69,14 @@ class Generator(nn.Module):
                 nn.LeakyReLU(0.2)
             )
     
-    def generator_final(self):
+    def generator_final(self, input_dim):
         return nn.Sequential(
-            nn.Linear(self.hidden_dims[-1], self.output_dim),
+            nn.Linear(input_dim, self.output_dim),
             nn.Tanh()
         )
 
     def forward(self, z_cond):
-        return self.blocks(z_cond).view(-1, self.input_shape)
+        return self.blocks(z_cond).view(-1, *self.input_shape)
     
 class Discriminator(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim):
@@ -89,10 +89,10 @@ class Discriminator(nn.Module):
     def build_discriminator(self):
         blocks = nn.ModuleList()
         hidden_in = self.input_dim
-        for hidden_out in self.hidden_dims[:-1]:
+        for hidden_out in self.hidden_dims:
             blocks.append(self.discriminator_block(hidden_in, hidden_out))
             hidden_in = hidden_out
-        blocks.append(self.discriminator_final())
+        blocks.append(self.discriminator_final(hidden_in))
         return nn.Sequential(*blocks)
     
     def discriminator_block(self, in_channels, out_channels):
@@ -101,10 +101,10 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2)
         )
     
-    def discriminator_final(self):
+    def discriminator_final(self, input_dim):
         return nn.Sequential(
-            nn.Linear(self.hidden_dims[-1], self.output_dim),
-            nn.Sigmoid()
+            nn.Linear(input_dim, self.output_dim),
+            ##nn.Sigmoid()
         )
 
     def forward(self, x_cond):
@@ -119,7 +119,7 @@ class LabelEmbedding(nn.Module):
         return self.embedding(x)
 
 def train_gan(model, device, data, epochs, lr):
-    criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss() ##nn.BCELoss()
     generator_optimizer = torch.optim.Adam(model.generator.parameters(), lr=lr)
     discriminator_optimizer = torch.optim.Adam(model.discriminator.parameters(), lr=lr)
     model.train()
@@ -128,43 +128,30 @@ def train_gan(model, device, data, epochs, lr):
         avg_g_loss = 0.0
         avg_d_loss = 0.0
         for real_images, labels in data:
-            b_size = real_images.size(0)
             real_images = real_images.to(device)
+            b_size = real_images.size(0)
             labels = labels.to(device)
-
-            # === Train Discriminator ===
             discriminator_optimizer.zero_grad()
-
-            # Real labels
             valid = torch.ones(b_size, 1, device=device)
             fake = torch.zeros(b_size, 1, device=device)
 
-            # Real loss
             real_preds = model.discriminate(real_images, labels)
             d_real_loss = criterion(real_preds, valid)
-
-            # Fake data
             fake_images = model.generate(labels).detach()
             fake_preds = model.discriminate(fake_images, labels)
             d_fake_loss = criterion(fake_preds, fake)
-
-            # Total discriminator loss
             d_loss = d_real_loss + d_fake_loss
             d_loss.backward()
             discriminator_optimizer.step()
 
-            # === Train Generator ===
             generator_optimizer.zero_grad()
-
             fake_images = model.generate(labels)
             fake_preds = model.discriminate(fake_images, labels)
             g_loss = criterion(fake_preds, valid)
-
             g_loss.backward()
             generator_optimizer.step()
 
             avg_g_loss += g_loss.item()
             avg_d_loss += d_loss.item()
-
-        print(f"[Epoch {epoch+1}] discriminator loss: {avg_g_loss / len(data)} | generator loss: {avg_g_loss / len(data)}")
+        print(f"[Epoch {epoch+1}] discriminator loss: {avg_d_loss / len(data)} | generator loss: {avg_g_loss / len(data)}")
         model.save("weights/gan.pth")
