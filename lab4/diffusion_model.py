@@ -192,17 +192,17 @@ def q_sample(x, t, noise, a_bar):
 
 
 def train_diffusion(model, data, epochs, lr, T=1000, device="cuda"):
-    model.to(device).train()
+    model.train().to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
-    betas, a_bar = make_beta_schedule(T, device=device)
+    _, a_bar = make_beta_schedule(T, device=device)
 
     for epoch in range(epochs):
         total = 0
         for x, y in data:
             x, y = x.to(device), y.to(device)
 
-            B = x.size(0)
+            B = x.shape[0]
             t = torch.randint(0, T, (B,), device=device, dtype=torch.long)
             noise = torch.randn_like(x)
             x_t = q_sample(x, t, noise, a_bar)
@@ -215,7 +215,7 @@ def train_diffusion(model, data, epochs, lr, T=1000, device="cuda"):
             optimizer.step()
             total += loss.item()
 
-        print(f"Epoch {epoch+1:03d} | loss: {total/len(data):.4f}")
+        print(f"[Epoch {epoch+1:03d}] | loss: {total/len(data):.4f}")
         torch.save(model.state_dict(), "weights/ddpm.pth")
 
 
@@ -227,7 +227,7 @@ def generate(
     betas, a_bar = make_beta_schedule(T, beta_start, beta_end, device)
     a_bar_prev = torch.cat([torch.ones(1, device=device), a_bar[:-1]])
 
-    B = y.size(0)
+    B = y.shape[0]
     C, H, W = 3, 32, 32
     x_t = torch.randn(B, C, H, W, device=device)
 
