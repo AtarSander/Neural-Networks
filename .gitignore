@@ -172,10 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-lab1/test
-lab1/train
-lab3/data
-lab3/test_all
-lab4/data
-lab5/data
-lab6/data
+*/test
+*/train
+*/paczka_klasyfikacja_obrazkow 1
+*/test_all
+*/data
+*/lora_results*
